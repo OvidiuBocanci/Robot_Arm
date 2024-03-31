@@ -1,12 +1,12 @@
 import pyfirmata2
-
-from Stepper_function import nano_sleep
+import pandas as pd
 import time
-
 import customtkinter as ctk
+import ast
+
 from PIL import Image
-
-
+from servo_motors import *
+from stepper_function import nano_sleep
 
 
 
@@ -15,7 +15,10 @@ ctk.set_default_color_theme("blue")
 
 root = ctk.CTk()
 root.title("Robot Arm")
-root.geometry("1150x600")
+root.geometry("1350x600")
+
+# with open('list_of_moves.xlsx', sheet='Sheet1')
+
 
 frame = ctk.CTkFrame(master=root, fg_color="#1F1F1F")
 frame.pack(padx=20, pady=20, fill="both", expand=True)
@@ -28,6 +31,10 @@ frame.grid_columnconfigure(0, weight=1)
 image_robot = ctk.CTkImage(dark_image=Image.open("robot_photo.jpg"), size=(200,550))
 label_image = ctk.CTkLabel(frame, image=image_robot, text="")
 label_image.grid( column=3, rowspan=6, padx=5, pady=5)
+
+# arduino_port = ctk.CTkInputDialog(text = "Type Arduino Port - COM3, COM4..", title="Arduino Port")
+# port = arduino_port.get_input()
+# board = pyfirmata2.Arduino(port)
 
 
 board = pyfirmata2.Arduino('COM4')
@@ -172,14 +179,54 @@ def save_moves():
     moves_list.append((value_stepper, value_servo1, value_servo2, value_servo3, value_servo4, value_servo5))
     print(moves_list)
 
-def play_moves():
-    for set_moves in moves_list:
-        value_stepper, value_servo1, value_servo2, value_servo3, value_servo4, value_servo5 = set_moves
-        motors_moves(value_stepper, value_servo1, value_servo2, value_servo3, value_servo4, value_servo5)
-        time.sleep(0.5)
 
+def add_moves():
+    global combobox_list
+    name_set_of_moves = ctk.CTkInputDialog(text="Type Name")
+    name_set = name_set_of_moves.get_input()
+
+    table = pd.read_excel("list_of_moves.xlsx")
+    new_moves = pd.DataFrame([{"Name": name_set, "Moves": moves_list}])
+    table = pd.concat([table, new_moves], ignore_index=True)
+
+    table.to_excel("list_of_moves.xlsx", index=False)
+    combobox_list = table['Name'].tolist()
+    combobox_moves.configure(values=combobox_list)
+
+
+
+
+
+table = pd.read_excel("list_of_moves.xlsx")
+combobox_list = table['Name'].tolist()
 def delete_moves():
     moves_list.clear()
+
+def combobox_value(choice):
+    table = pd.read_excel("list_of_moves.xlsx")
+    index_choice = table[table["Name"] == choice].index
+    moves_list = ast.literal_eval(table.loc[index_choice[0], "Moves"]) #evalueaza stringul ca o expresie Python
+
+
+    speed_choice = combobox_speed.get()
+
+    moves = list_of_moves(moves_list)
+    for set_moves in moves:
+        value_stepper, value_servo1, value_servo2, value_servo3, value_servo4, value_servo5 = set_moves
+        motors_moves(value_stepper, value_servo1, value_servo2, value_servo3, value_servo4, value_servo5)
+
+        if speed_choice == "1":
+            time.sleep(0.08)
+        elif speed_choice == "2":
+            time.sleep(0.05)
+        elif speed_choice == "3":
+            time.sleep(0.03)
+        elif speed_choice == "4":
+            time.sleep(0.01)
+        elif speed_choice == "5":
+            time.sleep(0)
+
+
 ##########################################################################################################################
 
     #define labels
@@ -261,10 +308,21 @@ textbox_servo5.grid(row=0, column=2, padx=20)
 
 save_button = ctk.CTkButton(frame, width=90, height=30, text="Save", font=('Comic Sans MS Bold', 15), command=save_moves)
 save_button.grid(row=6, column=0, padx=20)
-play_stop_button = ctk.CTkButton(frame, width=90, height=30, text="Play", font=('Comic Sans MS Bold', 15), command=play_moves)
+play_stop_button = ctk.CTkButton(frame, width=90, height=30, text="Add move", font=('Comic Sans MS Bold', 15), command=add_moves)
 play_stop_button.grid(row=6, column=1, padx=20)
 delete_button = ctk.CTkButton(frame, width=90, height=30, text="Delete", font=('Comic Sans MS Bold', 15),  command=delete_moves)
 delete_button.grid(row=6, column=2, padx=20)
+
+
+
+combobox_moves_var = ctk.StringVar(value="Choose move")
+combobox_moves = ctk.CTkComboBox(frame, values=combobox_list, state="readonly", command=combobox_value, variable=combobox_moves_var)
+combobox_moves.grid(row=0, column=4, padx=20)
+
+combobox_speed_var = ctk.StringVar(value="Choose speed")
+combobox_speed = ctk.CTkComboBox(frame, values=['1', '2', '3', '4', '5'], state="readonly", variable=combobox_speed_var)
+# combobox_speed_var.set('3')
+combobox_speed.grid(row=6, column=4, padx=20)
 
 
 ##########################################
@@ -283,7 +341,7 @@ def keys_keybord(event):
     elif key == "d":
         delete_moves()
     elif key == "a":
-        play_moves()
+        add_moves()
 
     elif key == "7":
         value_stepper, value_servo1, value_servo2, value_servo3, value_servo4, value_servo5 = get_values_motors()
